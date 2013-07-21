@@ -35,8 +35,6 @@
 #include <QObject>
 
 
-class ContextProperty;
-
 /// This class makes use of context provider to fetch battery level.
 
 /// This class subscribes to the context provider service to get notified
@@ -72,7 +70,6 @@ private slots:
     void onBatteryLevelChanged();
 
 private:
-    ContextProperty *m_propBatteryLevel; ///< The battery level property.
     quint8 m_batteryLevel; ///< The battery level.
 };
 }

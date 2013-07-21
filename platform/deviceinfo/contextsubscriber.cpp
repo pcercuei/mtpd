@@ -30,12 +30,7 @@
 */
 
 #include <QtGlobal>
-// work around breakage in statefs-contextkit
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-#include "contextproperty.h"
-#else
-#include "contextsubscriber/contextproperty.h"
-#endif
+
 #include "contextsubscriber.h"
 
 using namespace meegomtp1dot0;
@@ -45,14 +40,7 @@ using namespace meegomtp1dot0;
  **************************************/
 ContextSubscriber::ContextSubscriber(QObject* parent) : QObject(parent)
 {
-    bool ok;
-    m_propBatteryLevel = new ContextProperty("Battery.ChargePercentage", this);
-    connect(m_propBatteryLevel, SIGNAL(valueChanged()), this, SLOT(onBatteryLevelChanged()));
-    m_batteryLevel = static_cast<quint8>( m_propBatteryLevel->value().toString().toUShort(&ok) );
-    if( !ok )
-    {
-        m_batteryLevel = 0;
-    }
+	m_batteryLevel = 100;
 }
 
 /***************************************
@@ -60,7 +48,6 @@ ContextSubscriber::ContextSubscriber(QObject* parent) : QObject(parent)
  **************************************/
 ContextSubscriber::~ContextSubscriber()
 {
-    delete m_propBatteryLevel;
 }
 
 /***************************************
@@ -76,24 +63,4 @@ quint8 ContextSubscriber::batteryLevel()
  **************************************/
 void ContextSubscriber::onBatteryLevelChanged()
 {
-    bool ok;
-    quint16 currBatteryLevel = m_propBatteryLevel->value().toString().toUShort(&ok);
-
-    // If conversion failed we keep the battery as it is.
-    if( !ok )
-    {
-        return;
-    }
-
-    // We emit the signal only if the battery level changed by 10% or more.
-    qint8 diff = static_cast<qint8>(currBatteryLevel) - static_cast<qint8>(m_batteryLevel);
-    if( diff < 0 )
-    {
-        diff = diff * -1;
-    }
-    if( diff >= 10 )
-    {
-        emit( batteryLevelChanged( static_cast<quint8>(currBatteryLevel) ) );
-    }
-    m_batteryLevel = static_cast<quint8>(currBatteryLevel);
 }
