@@ -32,21 +32,8 @@
 #include "deviceinfoprovider.h"
 #include "contextsubscriber.h"
 #include "trace.h"
-#include <QDBusInterface>
-#include <QDBusReply>
 #include <QVariant>
 #include <QMap>
-
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-#include <QDeviceInfo>
-#else
-#include <QSystemDeviceInfo>
-#include <QSystemInfo>
-
-QTM_USE_NAMESPACE
-#endif
-
-#include <SyncDBusConnection.h>
 
 using namespace meegomtp1dot0;
 
@@ -63,20 +50,6 @@ using namespace meegomtp1dot0;
  *********************************************/
 DeviceInfoProvider::DeviceInfoProvider()
 {
-#ifdef UT_ON
-    // Temporary: The context subscriber constructor crashes while doing UT.
-    m_contextSubscriber = 0;
-#else
-    // Listen to context subscriber for battery level change notifications.
-    m_contextSubscriber = new ContextSubscriber(this);
-    QObject::connect(m_contextSubscriber, SIGNAL(batteryLevelChanged(const quint8&)), this, SLOT(batteryLevelChanged(const quint8&)));
-#endif
-
-    getSystemInfo();
-
-    // Get the BT adapter interface, this interface can later be used to get the BT name
-    // which will serve as the device friendly name.
-    getBTAdapterInterface();
 }
 
 /**********************************************
@@ -84,86 +57,6 @@ DeviceInfoProvider::DeviceInfoProvider()
  *********************************************/
 DeviceInfoProvider::~DeviceInfoProvider()
 {
-#ifndef UT_ON
-    delete m_contextSubscriber;
-#endif
-}
-
-/**********************************************
- * void DeviceInfoProvider::getSystemInfo
- *********************************************/
-void DeviceInfoProvider::getSystemInfo()
-{
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
-    QDeviceInfo *di = new QDeviceInfo(this);
-
-    /// @todo hardcoded to first IMEI for now
-    m_serialNo = di->imei(0).isEmpty() ? m_serialNo : di->imei(0);
-    m_deviceVersion = di->version(QDeviceInfo::Firmware).isEmpty()
-        ? m_deviceVersion : di->version(QDeviceInfo::Firmware);
-#else
-    QSystemInfo *si = new QSystemInfo(this);
-    QSystemDeviceInfo *di = new QSystemDeviceInfo(this);
-
-    m_deviceVersion = si->version(QSystemInfo::Firmware).isEmpty()
-        ? m_deviceVersion : si->version(QSystemInfo::Firmware);
-    m_serialNo = di->imei().isEmpty() ? m_serialNo : di->imei();
-
-    delete si;
-#endif
-
-    m_manufacturer = di->manufacturer().isEmpty() ? m_manufacturer : di->manufacturer();
-    m_model = di->model().isEmpty() ? m_model : di->model();
-
-    delete di;
-}
-
-/**********************************************
- * void DeviceInfoProvider::getBTAdapterInterface
- *********************************************/
-void DeviceInfoProvider::getBTAdapterInterface()
-{
-    // Get the DBUS interface for BT manager.
-    QDBusInterface managerInterface( BLUEZ_DEST, "/", BLUEZ_MANAGER_INTERFACE, Buteo::SyncDBusConnection::systemBus() );
-    if( !managerInterface.isValid() )
-    {
-        m_defaultAdapterPath = "";
-        return;
-    }
-
-    QDBusReply<QDBusObjectPath> reply = managerInterface.call( QLatin1String( GET_DEFAULT_ADAPTER ) );
-    if( reply.isValid() ) {
-        m_defaultAdapterPath = reply.value().path();
-    }
-    else {
-        m_defaultAdapterPath = "";
-    }
-}
-
-// TODO Emit a devicePropChanged event when the BT name changes while the MTP session is active
-
-/**********************************************
- * QString DeviceInfoProvider::getBTFriendlyName
- *********************************************/
-QString DeviceInfoProvider::getBTFriendlyName()
-{
-    if( "" == m_defaultAdapterPath )
-    {
-        return "";
-    }
-
-    // Get the DBUS interface for BT adapter.
-    QDBusInterface adapterInterface( BLUEZ_DEST, m_defaultAdapterPath, BLUEZ_ADAPTER_INTERFACE, Buteo::SyncDBusConnection::systemBus() );
-
-    // Call appropriate method on BT adapter interface to get the BT friendly name.
-    QDBusReply<QMap<QString,QVariant> > propReply = adapterInterface.call( QLatin1String( GET_PROPERTIES ) );
-    if( propReply.isValid() )
-    {
-        QMap<QString,QVariant> props = propReply;
-        QVariant name = props.value("Name");
-        return name.toString();
-    }
-    return "";
 }
 
 /**********************************************
@@ -175,24 +68,8 @@ quint8 DeviceInfoProvider::batteryLevel( bool /*current*/ ) const
 }
 
 /**********************************************
- * const QString& DeviceInfoProvider::deviceFriendlyName
- *********************************************/
-#if 0
-const QString& DeviceInfoProvider::deviceFriendlyName( bool /*current*/ )
-{
-    QString name = getBTFriendlyName();
-    if( "" != name )
-    {
-        m_deviceFriendlyName = name;
-    }
-    return m_deviceFriendlyName;
-}
-#endif
-
-/**********************************************
  * void DeviceInfoProvider::batteryLevelChanged
  *********************************************/
 void DeviceInfoProvider::batteryLevelChanged( const quint8& /*batteryLevel*/ )
 {
-    //TODO Send an event
 }
